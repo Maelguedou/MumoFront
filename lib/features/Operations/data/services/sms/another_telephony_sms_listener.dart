@@ -1,12 +1,12 @@
-import 'package:telephony/telephony.dart';
+import 'package:another_telephony/telephony.dart';
 
 import '../sms_service.dart' show backGroundMessageHandler;
 import 'incoming_sms_message.dart';
 import 'sms_listener.dart';
 
-/// Implementation actuelle de [SmsListener] basee sur le package telephony.
-class TelephonySmsListener implements SmsListener {
-  TelephonySmsListener({Telephony? telephony})
+/// Implementation de [SmsListener] basee sur le package another_telephony.
+class AnotherTelephonySmsListener implements SmsListener {
+  AnotherTelephonySmsListener({Telephony? telephony})
     : _telephony = telephony ?? Telephony.instance;
 
   final Telephony _telephony;

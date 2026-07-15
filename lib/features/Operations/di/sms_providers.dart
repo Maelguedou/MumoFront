@@ -1,10 +1,10 @@
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import '../data/services/sms/another_telephony_sms_listener.dart';
 import '../data/services/sms/sms_listener.dart';
-import '../data/services/sms/telephony_sms_listener.dart';
 import '../data/services/sms_service.dart';
 
 final smsListenerProvider = Provider<SmsListener>((ref) {
-  return TelephonySmsListener();
+  return AnotherTelephonySmsListener();
 });
 
 final smsServiceProvider = Provider<SmsService>((ref) {

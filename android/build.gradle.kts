@@ -19,7 +19,7 @@ subprojects {
     project.evaluationDependsOn(":app")
 }
 subprojects {
-    if (name == "telephony") {
+    if (name == "telephony" || name == "another_telephony") {
         plugins.withId("com.android.library") {
             extensions.configure<com.android.build.gradle.LibraryExtension>("android") {
                 namespace = "com.shounakmulay.telephony"
