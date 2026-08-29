@@ -1,19 +1,28 @@
-import 'package:flutter/services.dart';
+import 'dart:typed_data';
+import 'package:file_picker/file_picker.dart';
 
 class DownloadService {
   DownloadService._();
 
-  static const MethodChannel _channel = MethodChannel('mumo_agent/downloads');
-
+  /// Laisse l'utilisateur choisir où enregistrer le fichier
+  /// via le sélecteur natif (Storage Access Framework sur Android).
+  ///
+  /// Retourne le chemin choisi si succès, `null` si l'utilisateur annule.
   static Future<String?> saveToDownloads({
     required Uint8List bytes,
     required String fileName,
     required String mimeType,
-  }) {
-    return _channel.invokeMethod<String>('saveFileToDownloads', {
-      'bytes': bytes,
-      'fileName': fileName,
-      'mimeType': mimeType,
-    });
+  }) async {
+    final extension = fileName.contains('.') ? fileName.split('.').last : null;
+
+    final String? savedPath = await FilePicker.saveFile(
+      dialogTitle: 'Enregistrer le fichier',
+      fileName: fileName,
+      type: extension != null ? FileType.custom : FileType.any,
+      allowedExtensions: extension != null ? [extension] : null,
+      bytes: bytes,
+    );
+
+    return savedPath;
   }
 }

@@ -107,7 +107,7 @@ class AgencyReportController extends Notifier<AgencyReportStateModel> {
     );
   }
 
-  Future<void> _download({
+Future<void> _download({
     required bool isPdf,
     required DateTime startDate,
     required DateTime endDate,
@@ -143,11 +143,16 @@ class AgencyReportController extends Notifier<AgencyReportStateModel> {
             fileName: fileName,
             mimeType: 'application/pdf',
           );
-          state = state.copyWith(
-            isDownloading: false,
-            downloadMessage:
-                'PDF téléchargé dans ${savedPath ?? 'Téléchargements/MumoAgent'}',
-          );
+
+          if (savedPath != null) {
+            state = state.copyWith(
+              isDownloading: false,
+              downloadMessage: 'PDF enregistré avec succès',
+            );
+          } else {
+            // L'utilisateur a annulé — pas une erreur, juste un non-événement
+            state = state.copyWith(isDownloading: false);
+          }
         } else {
           state = state.copyWith(
             isDownloading: false,
@@ -163,11 +168,16 @@ class AgencyReportController extends Notifier<AgencyReportStateModel> {
             fileName: fileName,
             mimeType: 'text/csv',
           );
-          state = state.copyWith(
-            isDownloading: false,
-            downloadMessage:
-                'CSV téléchargé dans ${savedPath ?? 'Téléchargements/MumoAgent'}',
-          );
+
+          if (savedPath != null) {
+            state = state.copyWith(
+              isDownloading: false,
+              downloadMessage: 'CSV enregistré avec succès',
+            );
+          } else {
+            // L'utilisateur a annulé — pas une erreur, juste un non-événement
+            state = state.copyWith(isDownloading: false);
+          }
         } else {
           state = state.copyWith(
             isDownloading: false,

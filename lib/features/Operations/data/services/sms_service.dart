@@ -8,6 +8,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:another_telephony/telephony.dart';
 import 'package:intl/intl.dart';
+import 'package:meta/meta.dart';
 
 import '../../../../../core/logging/app_logger.dart';
 import '../../di/operation_providers.dart';
@@ -93,13 +94,13 @@ void backGroundMessageHandler(SmsMessage message) async {
     );
 
     if (success) {
-      dev.log('[BG SMS] ✅ Confirmation réussie');
+      dev.log('[BG SMS] Confirmation réussie');
       await AppLogger.info(
         'BG SMS confirm-from-sms success tx=${parsed.transactionId}',
         tag: 'SMS',
       );
     } else {
-      dev.log('[BG SMS] ⚠️ Échec réseau → queue locale');
+      dev.log('[BG SMS]  Échec réseau → queue locale');
       await SmsLocalQueue.add({
         'amount': parsed.amount,
         'number': parsed.number,
@@ -216,6 +217,11 @@ class SmsService {
 
   bool _hasNetwork(List<ConnectivityResult> results) {
     return results.any((result) => result != ConnectivityResult.none);
+  }
+
+  @visibleForTesting
+  Future<void> processIncomingMessageForTest(IncomingSmsMessage message) {
+    return _processMessage(message);
   }
 
   Future<void> _processMessage(IncomingSmsMessage message) async {

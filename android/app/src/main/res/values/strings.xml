@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
+    <string name="app_name">MumoAgent</string>
     <string name="ussd_accessibility_description">Service de lecture des reponses USSD</string>
 </resources>

@@ -25,6 +25,11 @@ class SmsParser {
   /// Analyse le corps d'un SMS et retourne les données si elles correspondent à un pattern connu.
   static SmsParsedData? parse(String sender, String body) {
     final senderUpper = sender.toUpperCase();
+    final normalizedBody = _normalize(body);
+
+    if (_containsFailureMarker(normalizedBody)) {
+      return null;
+    }
 
     if (senderUpper.contains('MTN')) {
       return _parseMtn(body);
@@ -40,7 +45,7 @@ class SmsParser {
   static SmsParsedData? _parseMtn(String body) {
     final cleanBody = body.replaceAll(RegExp(r'\s+'), ' ');
 
-    // Exemple reel:
+    // Exemple:
     // "Depot 1500F a NOM (2290166627695) ... Ref:1 Solde:73425F ID:12403143013"
     final cashInOutRegEx = RegExp(
       r'\b(d[eé]p[oô]t|depot|retrait)\s+([\d\s.,]+)\s*F\s+a\s+(.+?)\s*\((229\d{8,13})\).*?\bID\s*:\s*([A-Z0-9._\/-]+)',
@@ -146,7 +151,7 @@ class SmsParser {
 
     // ESSAI PATTERN RETRAIT (si le dépôt n'a rien donné)
     final retRegEx = RegExp(
-      r'retiré\s+un\s+montant\s+de\s+([\d.,]+)\s*F\s+chez\s+(.+?)\s+(\d{8,13}).+?REF:\s*(\w+)',
+      r'retir[eé]\s+un\s+montant\s+de\s+([\d.,]+)\s*F\s+chez\s+(.+?)\s+(\d{8,13}).+?REF:\s*(\w+)',
       caseSensitive: false,
     );
     match = retRegEx.firstMatch(cleanBody);
@@ -168,13 +173,14 @@ class SmsParser {
   static SmsParsedData? _parseGenericTransfer(String operator, String body) {
     final cleanBody = body.replaceAll(RegExp(r'\s+'), ' ');
     final normalized = _normalize(cleanBody);
+    final amount = _extractAmount(cleanBody);
 
-    if (!_looksLikeSuccessfulTransfer(normalized)) {
+    if (!_looksLikeSuccessfulTransfer(normalized) || amount == null) {
       return null;
     }
 
     return SmsParsedData(
-      amount: _extractAmount(cleanBody),
+      amount: amount,
       number: _extractPhoneNumber(cleanBody),
       transactionId: _extractTransactionId(cleanBody),
       operator: operator,
@@ -202,7 +208,13 @@ class SmsParser {
       'valide',
     ].any(normalized.contains);
 
-    final hasFailure = [
+    final hasFailure = _containsFailureMarker(normalized);
+
+    return hasSuccess && !hasFailure;
+  }
+
+  static bool _containsFailureMarker(String normalized) {
+    return [
       'insuffisant',
       'echoue',
       'echec',
@@ -212,8 +224,6 @@ class SmsParser {
       'incorrect',
       'impossible',
     ].any(normalized.contains);
-
-    return hasSuccess && !hasFailure;
   }
 
   static String? _extractPhoneNumber(String body) {
@@ -234,6 +244,14 @@ class SmsParser {
   static String? _extractAmount(String body) {
     final patterns = [
       RegExp(
+        r'\bmontant\s*[:=]?\s*([\d\s.,]+)\s*F(?:CFA)?\b',
+        caseSensitive: false,
+      ),
+      RegExp(
+        r'\b(?:forfait|pass|airtime|internet|appel)(?:\s+\w+){0,4}\s+([\d\s.,]+)\s*F(?:CFA)?\b',
+        caseSensitive: false,
+      ),
+      RegExp(
         r'(?:montant|pour|de|envoy[eé]|re[cç]u|transfert)\s+([\d\s.,]+)\s*F(?:CFA)?',
         caseSensitive: false,
       ),
@@ -253,6 +271,10 @@ class SmsParser {
 
   static String? _extractTransactionId(String body) {
     final patterns = [
+      RegExp(
+        r'\bREF\s+ID\s*[:#\-]?\s*([A-Z0-9][A-Z0-9._\/-]*)',
+        caseSensitive: false,
+      ),
       RegExp(
         r'(?:\bID\b|\bREF\b|Réf)\s*(?:transaction|trans|txn)?\s*[:#\-]?\s*([A-Z0-9][A-Z0-9._\/-]*)',
         caseSensitive: false,
@@ -281,7 +303,44 @@ class SmsParser {
   }
 
   static String _cleanAmount(String rawAmount) {
-    return rawAmount.replaceAll(RegExp(r'[.,\s]'), '');
+    var value = rawAmount.trim().replaceAll(RegExp(r'\s+'), '');
+
+    final hasComma = value.contains(',');
+    final hasDot = value.contains('.');
+
+    if (hasComma && hasDot) {
+      final lastComma = value.lastIndexOf(',');
+      final lastDot = value.lastIndexOf('.');
+      final decimalSeparator = lastComma > lastDot ? ',' : '.';
+      final decimalIndex = decimalSeparator == ',' ? lastComma : lastDot;
+      final fraction = value.substring(decimalIndex + 1);
+
+      if (fraction.length <= 2) {
+        value = value.substring(0, decimalIndex);
+      }
+
+      return value.replaceAll(RegExp(r'[.,]'), '');
+    }
+
+    if (hasComma) {
+      final lastComma = value.lastIndexOf(',');
+      final fraction = value.substring(lastComma + 1);
+      if (fraction.length <= 2) {
+        value = value.substring(0, lastComma);
+      }
+      return value.replaceAll(',', '');
+    }
+
+    if (hasDot) {
+      final lastDot = value.lastIndexOf('.');
+      final fraction = value.substring(lastDot + 1);
+      if (fraction.length <= 2) {
+        value = value.substring(0, lastDot);
+      }
+      return value.replaceAll('.', '');
+    }
+
+    return value.replaceAll(RegExp(r'\D'), '');
   }
 
   static String _operationTypeFromLabel(String label) {

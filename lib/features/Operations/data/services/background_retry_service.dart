@@ -1,9 +1,33 @@
 import 'dart:developer' as dev;
+import 'package:meta/meta.dart';
+
 import '../../../../../core/logging/app_logger.dart';
 import 'sms_confirmation_service.dart';
 import 'sms_local_queue.dart';
 
 class BackgroundRetryService {
+  @visibleForTesting
+  static Future<int?> Function(String operatorName)?
+  resolveOperatorIdForTesting;
+
+  @visibleForTesting
+  static Future<bool> Function({
+    String? amount,
+    String? number,
+    required int operatorId,
+    required String smsDate,
+    String? transactionId,
+    String? message,
+    String? operationType,
+  })?
+  confirmFromSmsForTesting;
+
+  @visibleForTesting
+  static void resetTestingOverrides() {
+    resolveOperatorIdForTesting = null;
+    confirmFromSmsForTesting = null;
+  }
+
   static Future<void> retryPending({bool force = false}) async {
     final pending = await SmsLocalQueue.getAll();
     if (pending.isEmpty) {
@@ -35,9 +59,11 @@ class BackgroundRetryService {
         // Résoudre l'operatorId si on a stocké le nom
         int? operatorId = item['operator_id'] as int?;
         if (operatorId == null && item['operator_name'] != null) {
-          operatorId = await SmsConfirmationService.resolveOperatorId(
-            item['operator_name'] as String,
-          );
+          operatorId =
+              await (resolveOperatorIdForTesting ??
+                  SmsConfirmationService.resolveOperatorId)(
+                item['operator_name'] as String,
+              );
         }
         if (operatorId == null) {
           dev.log(
@@ -52,15 +78,17 @@ class BackgroundRetryService {
           continue;
         }
 
-        final success = await SmsConfirmationService.confirmFromSms(
-          amount: item['amount'] as String?,
-          number: item['number'] as String?,
-          operatorId: operatorId,
-          smsDate: item['sms_date'] as String,
-          transactionId: item['transaction_id'] as String?,
-          message: item['message'] as String?,
-          operationType: item['operation_type'] as String?,
-        );
+        final success =
+            await (confirmFromSmsForTesting ??
+                SmsConfirmationService.confirmFromSms)(
+              amount: item['amount'] as String?,
+              number: item['number'] as String?,
+              operatorId: operatorId,
+              smsDate: item['sms_date'] as String,
+              transactionId: item['transaction_id'] as String?,
+              message: item['message'] as String?,
+              operationType: item['operation_type'] as String?,
+            );
 
         if (success) {
           await SmsLocalQueue.removeAt(i);

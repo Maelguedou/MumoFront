@@ -24,8 +24,6 @@ class _AgentmainscreenPageState extends ConsumerState<AgentmainscreenPage> {
       ),
     ),
     const Center(child: HistoryScreen()),
-    const Center(child: Text('Stats')),
-    const Center(child: Text('Insights')),
     const AgentProfilePage(),
   ];
 
@@ -78,16 +76,6 @@ class _AgentmainscreenPageState extends ConsumerState<AgentmainscreenPage> {
             icon: const Icon(Icons.notes),
             activeIcon: _buildActiveIcon(Icons.notes),
             label: 'Historique',
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.adjust), // Icône style "cible" de ton design
-            activeIcon: _buildActiveIcon(Icons.adjust),
-            label: 'Stats',
-          ),
-          BottomNavigationBarItem(
-            icon: const Icon(Icons.auto_awesome_outlined),
-            activeIcon: _buildActiveIcon(Icons.auto_awesome),
-            label: 'Insights',
           ),
           BottomNavigationBarItem(
             icon: const Icon(Icons.account_circle_outlined),

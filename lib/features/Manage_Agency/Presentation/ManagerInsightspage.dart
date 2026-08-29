@@ -5,8 +5,9 @@ import 'package:intl/intl.dart';
 import '../../../core/theme/app_colors.dart';
 import '../../../core/theme/app_design_tokens.dart';
 import '../../../core/theme/app_theme_colors.dart';
-import '../Controller/agency_stats_controller.dart';
-import '../domain/entities/agency_stats.dart';
+import '../di/agency_insight_provider.dart';
+import '../domain/entities/agency_insight.dart';
+import '../domain/entities/agency_insight_item.dart';
 
 class InsightsPage extends ConsumerStatefulWidget {
   const InsightsPage({super.key});
@@ -20,24 +21,28 @@ class _InsightsPageState extends ConsumerState<InsightsPage> {
   void initState() {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      final state = ref.read(agencyStatsControllerProvider);
-      if (state.dashboard.insights.isEmpty && !state.isLoading) {
-        ref.read(agencyStatsControllerProvider.notifier).load();
+      final state = ref.read(agencyInsightControllerProvider);
+      if (state.history.isEmpty && !state.isLoading && !state.isGenerating) {
+        ref.read(agencyInsightControllerProvider.notifier).loadCurrentPeriod();
       }
     });
   }
 
   Future<void> _refresh() {
-    return ref.read(agencyStatsControllerProvider.notifier).load();
+    return ref
+        .read(agencyInsightControllerProvider.notifier)
+        .loadCurrentPeriod();
   }
 
   @override
   Widget build(BuildContext context) {
     final colors = AppThemeColors(context);
-    final state = ref.watch(agencyStatsControllerProvider);
+    final state = ref.watch(agencyInsightControllerProvider);
     final dateFormat = DateFormat('dd/MM/yyyy');
-    final period =
-        '${dateFormat.format(state.startDate)} - ${dateFormat.format(state.endDate)}';
+    final selected = state.selectedInsight;
+    final period = selected == null
+        ? 'Période sélectionnée automatiquement'
+        : '${dateFormat.format(selected.startDate)} - ${dateFormat.format(selected.endDate)}';
 
     return Scaffold(
       backgroundColor: colors.background,
@@ -67,6 +72,27 @@ class _InsightsPageState extends ConsumerState<InsightsPage> {
           children: [
             _IntroCard(period: period),
             const SizedBox(height: AppSpacing.xl),
+            SegmentedButton<String>(
+              segments: const [
+                ButtonSegment<String>(
+                  value: 'daily',
+                  label: Text('Quotidien'),
+                  icon: Icon(Icons.today_outlined),
+                ),
+                ButtonSegment<String>(
+                  value: 'monthly',
+                  label: Text('Mensuel'),
+                  icon: Icon(Icons.calendar_month_outlined),
+                ),
+              ],
+              selected: {state.selectedGranularity},
+              onSelectionChanged: state.isLoading || state.isGenerating
+                  ? null
+                  : (selection) => ref
+                        .read(agencyInsightControllerProvider.notifier)
+                        .loadCurrentPeriod(granularity: selection.first),
+            ),
+            const SizedBox(height: AppSpacing.xl),
             if (state.errorMessage != null) ...[
               _StatePanel(
                 message: state.errorMessage!,
@@ -77,23 +103,27 @@ class _InsightsPageState extends ConsumerState<InsightsPage> {
               ),
               const SizedBox(height: AppSpacing.xl),
             ],
-            if (state.isLoading && state.dashboard.insights.isEmpty)
+            if ((state.isLoading || state.isGenerating) && selected == null)
               const _StatePanel(
                 message: 'Analyse des données de l’agence...',
                 showLoader: true,
               )
-            else if (state.dashboard.insights.isEmpty)
+            else if (state.selectedInsight == null)
               const _StatePanel(
-                message:
-                    'Aucun point particulier à signaler sur cette période.',
+                message: 'Aucune analyse disponible pour cette période.',
                 icon: Icons.verified_outlined,
                 color: AppColors.success,
               )
             else
               Column(
                 children: [
-                  for (final item in state.dashboard.insights)
-                    _InsightCard(item: item),
+                  for (final insight in state.history)
+                    _InsightReportCard(
+                      insight: insight,
+                      onTap: () => ref
+                          .read(agencyInsightControllerProvider.notifier)
+                          .selectInsight(insight),
+                    ),
                 ],
               ),
           ],
@@ -168,10 +198,68 @@ class _IntroCard extends StatelessWidget {
   }
 }
 
+class _InsightReportCard extends StatelessWidget {
+  const _InsightReportCard({required this.insight, required this.onTap});
+
+  final AgencyInsight insight;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = AppThemeColors(context);
+    final dateFormat = DateFormat('dd/MM/yyyy');
+    final period =
+        '${dateFormat.format(insight.startDate)} - ${dateFormat.format(insight.endDate)}';
+
+    return Container(
+      width: double.infinity,
+      margin: const EdgeInsets.only(bottom: AppSpacing.md),
+      padding: const EdgeInsets.all(AppSpacing.lg),
+      decoration: BoxDecoration(
+        color: colors.surface,
+        borderRadius: BorderRadius.circular(AppRadii.lg),
+        border: Border.all(color: colors.border),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Row(
+            children: [
+              Expanded(
+                child: Text(
+                  insight.granularity == 'daily'
+                      ? 'Analyse quotidienne'
+                      : 'Analyse mensuelle',
+                  style: TextStyle(
+                    color: colors.textPrimary,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w900,
+                  ),
+                ),
+              ),
+              TextButton(onPressed: onTap, child: const Text('Consulter')),
+            ],
+          ),
+          Text(
+            period,
+            style: TextStyle(
+              color: colors.textSecondary,
+              fontSize: 12,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
+          const SizedBox(height: AppSpacing.md),
+          for (final item in insight.insights) _InsightCard(item: item),
+        ],
+      ),
+    );
+  }
+}
+
 class _InsightCard extends StatelessWidget {
   const _InsightCard({required this.item});
 
-  final AgencyStatsInsightItem item;
+  final AgencyInsightItem item;
 
   @override
   Widget build(BuildContext context) {

@@ -119,9 +119,15 @@ class _OperationFormPageState extends ConsumerState<OperationFormPage> {
     final fieldColor = colors.surfaceAlt;
     final borderColor = colors.border;
     final secondaryText = colors.textSecondary;
-    final matchingUssds = _selectedOperator == null
+    final selectedOperator = _selectedOperator == null
+        ? null
+        : _operatorById(operationState.operators, _selectedOperator!.id);
+    final matchingUssds = selectedOperator == null
         ? <UssdModel>[]
-        : _matchingUssds(_selectedOperator!);
+        : _matchingUssds(selectedOperator);
+    final selectedUssd = _selectedUssd == null
+        ? null
+        : _ussdById(matchingUssds, _selectedUssd!.id);
     final simOptions = _simOptions();
     final selectedSimSlot =
         simOptions.any((sim) => sim.slotIndex == _selectedSimSlot)
@@ -198,7 +204,7 @@ class _OperationFormPageState extends ConsumerState<OperationFormPage> {
                       .getOperators(),
                 ),
               DropdownButtonFormField<OperatorModel>(
-                initialValue: _selectedOperator,
+                initialValue: selectedOperator,
                 hint: Text(
                   operationState.isLoading
                       ? "Chargement..."
@@ -239,7 +245,7 @@ class _OperationFormPageState extends ConsumerState<OperationFormPage> {
                 ),
                 const SizedBox(height: AppSpacing.sm),
                 DropdownButtonFormField<UssdModel>(
-                  initialValue: _selectedUssd,
+                  initialValue: selectedUssd,
                   decoration: InputDecoration(
                     filled: true,
                     fillColor: fieldColor,
@@ -482,6 +488,20 @@ class _OperationFormPageState extends ConsumerState<OperationFormPage> {
     );
   }
 
+  OperatorModel? _operatorById(List<OperatorModel> operators, int id) {
+    for (final operator in operators) {
+      if (operator.id == id) return operator;
+    }
+    return null;
+  }
+
+  UssdModel? _ussdById(List<UssdModel> ussds, int id) {
+    for (final ussd in ussds) {
+      if (ussd.id == id) return ussd;
+    }
+    return null;
+  }
+
   List<DeviceSimInfo> _simOptions() {
     if (_deviceSimCards.isNotEmpty) return _deviceSimCards;
 
@@ -677,7 +697,7 @@ class _OperationFormPageState extends ConsumerState<OperationFormPage> {
       Navigator.pop(context);
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text("Opération envoyée ! Le dialer va s'ouvrir."),
+          content: Text("Opération envoyée "),
           backgroundColor: AppColors.success,
         ),
       );
