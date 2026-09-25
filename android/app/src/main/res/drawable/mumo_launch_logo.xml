@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="utf-8"?>
+<vector xmlns:android="http://schemas.android.com/apk/res/android"
+    android:width="120dp"
+    android:height="120dp"
+    android:viewportWidth="120"
+    android:viewportHeight="120">
+
+    <!-- MumoAgent launch mark: red rounded square with a white M. -->
+    <path
+        android:fillColor="#D30022"
+        android:pathData="M20,0 h80 a20,20 0,0 1,20 20 v80 a20,20 0,0 1,-20 20 h-80 a20,20 0,0 1,-20 -20 v-80 a20,20 0,0 1,20 -20 z" />
+    <path
+        android:fillColor="#FFFFFF"
+        android:pathData="M38,80 V40 h10 l12,17 12,-17 h10 v40 H72 V58 L60,75 48,58 v22 z" />
+</vector>

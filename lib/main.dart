@@ -12,6 +12,7 @@ import 'features/Operations/data/services/sms_background_service.dart';
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   await initializeSmsBackgroundService();
+  await startSmsBackgroundServiceIfNeeded();
   final initialThemeMode = await ThemeModeController.loadSavedThemeMode();
 
   runApp(

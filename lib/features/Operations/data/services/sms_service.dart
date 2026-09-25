@@ -1,8 +1,6 @@
-import 'dart:async';
 import 'dart:developer' as dev;
 import 'dart:ui';
 
-import 'package:connectivity_plus/connectivity_plus.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -15,8 +13,8 @@ import '../../di/operation_providers.dart';
 import 'sms_parser.dart';
 import 'sms_confirmation_service.dart';
 import 'sms_local_queue.dart';
-import 'background_retry_service.dart';
 import 'operator_matcher.dart';
+import 'sms_background_service.dart';
 import 'sms/incoming_sms_message.dart';
 import 'sms/sms_listener.dart';
 
@@ -76,6 +74,7 @@ void backGroundMessageHandler(SmsMessage message) async {
         'transaction_id': parsed.transactionId,
         'message': body,
       });
+      await startSmsBackgroundServiceIfNeeded();
       await AppLogger.warning(
         'BG SMS queued because operator could not be resolved operator=${parsed.operator}',
         tag: 'SMS',
@@ -110,6 +109,7 @@ void backGroundMessageHandler(SmsMessage message) async {
         'transaction_id': parsed.transactionId,
         'message': body,
       });
+      await startSmsBackgroundServiceIfNeeded();
       await AppLogger.warning(
         'BG SMS confirm failed and queued tx=${parsed.transactionId}',
         tag: 'SMS',
@@ -135,18 +135,11 @@ String _smsPreview(String value) {
 class SmsService {
   final Ref _ref;
   final SmsListener _smsListener;
-  final Connectivity _connectivity = Connectivity();
-  StreamSubscription<List<ConnectivityResult>>? _connectivitySubscription;
-  bool _isRetrying = false;
 
   SmsService(this._ref, this._smsListener);
 
   Future<void> init() async {
     await AppLogger.info('SMS service init start', tag: 'SMS');
-
-    // Retenter les confirmations échouées au démarrage
-    await _retryPendingQueue();
-    _startConnectivityRetry();
 
     try {
       final permissionsGranted = await _smsListener.requestPermissions();
@@ -186,38 +179,7 @@ class SmsService {
     }
   }
 
-  Future<void> dispose() async {
-    await _connectivitySubscription?.cancel();
-    _connectivitySubscription = null;
-  }
-
-  void _startConnectivityRetry() {
-    if (_connectivitySubscription != null) return;
-
-    _connectivitySubscription = _connectivity.onConnectivityChanged.listen((
-      results,
-    ) {
-      if (_hasNetwork(results)) {
-        dev.log('[Retry] Connectivité détectée → retry queue locale');
-        _retryPendingQueue();
-      }
-    });
-  }
-
-  Future<void> _retryPendingQueue() async {
-    if (_isRetrying) return;
-
-    _isRetrying = true;
-    try {
-      await BackgroundRetryService.retryPending();
-    } finally {
-      _isRetrying = false;
-    }
-  }
-
-  bool _hasNetwork(List<ConnectivityResult> results) {
-    return results.any((result) => result != ConnectivityResult.none);
-  }
+  Future<void> dispose() async {}
 
   @visibleForTesting
   Future<void> processIncomingMessageForTest(IncomingSmsMessage message) {
@@ -300,6 +262,8 @@ class SmsService {
       } catch (e) {
         dev.log("Erreur lors de la confirmation SMS: $e");
         await SmsLocalQueue.add(queuePayload);
+
+        await startSmsBackgroundServiceIfNeeded();
         await _logConfirmFailure(e, queuePayload);
         await AppLogger.error(
           'FG SMS confirm failed and queued',

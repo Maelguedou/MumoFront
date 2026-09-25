@@ -28,7 +28,6 @@ class _SplashPageState extends ConsumerState<SplashPage>
   static const Set<String> _managerRoles = {'admin'};
 
   late final AnimationController _entryCtrl;
-  late final AnimationController _pulseCtrl;
   late final AnimationController _dotsCtrl;
 
   // Refresh button rotation
@@ -36,19 +35,11 @@ class _SplashPageState extends ConsumerState<SplashPage>
   late final Animation<double> _refreshRotation;
 
   // ── Entry (utilisés avec FadeTransition / SlideTransition) ───
-  late final Animation<double> _logoScale;
-  late final Animation<double> _logoFade;
   late final Animation<Offset> _titleSlide;
   late final Animation<double> _titleFade;
   late final Animation<Offset> _subSlide;
   late final Animation<double> _subFade;
   late final Animation<double> _dotsFade;
-
-  // ── Pulse ───────────────────────────────────────────────────
-  late final Animation<double> _haloScale;
-  late final Animation<double> _haloFade;
-  late final Animation<double> _ringScale;
-  late final Animation<double> _ringFade;
 
   @override
   void initState() {
@@ -56,6 +47,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
     _setupAnimations();
     _startSequence();
 
+    //gère la redirection de l'utilisateur au démarrage de l'application
     _agencyCheckSub = ref.listenManual(agencyCheckControllerProvider, (
       previous,
       next,
@@ -172,7 +164,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
     }
 
     if (token == null || token.isEmpty) {
-      await Future.delayed(const Duration(milliseconds: 900));
+      //await Future.delayed(const Duration(milliseconds: 900));
       if (mounted && !_navigationHandled) {
         _handleRedirection('/onboarding');
       }
@@ -201,14 +193,14 @@ class _SplashPageState extends ConsumerState<SplashPage>
     final contexts =
         ref.read(authControllerProvider).user?.contexts ?? const [];
     if (contexts.length > 1) {
-      await Future.delayed(const Duration(milliseconds: 900));
+      //await Future.delayed(const Duration(milliseconds: 900));
       if (mounted && !_navigationHandled) {
         _handleRedirection('/choose-workspace');
       }
       return;
     }
     if (contexts.isEmpty && (role == null || role.isEmpty)) {
-      await Future.delayed(const Duration(milliseconds: 900));
+      //await Future.delayed(const Duration(milliseconds: 900));
       if (mounted && !_navigationHandled) {
         _handleRedirection('/choose-workspace');
       }
@@ -217,7 +209,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
 
     final isManager = role != null && _managerRoles.contains(role);
     if (!isManager) {
-      await Future.delayed(const Duration(milliseconds: 900));
+      //await Future.delayed(const Duration(milliseconds: 900));
       if (mounted && !_navigationHandled) {
         final mustChange =
             ref.read(authControllerProvider).user?.mustChangePassword ?? false;
@@ -258,21 +250,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
     // ── Entry (750 ms, one-shot) ──────────────────────────────
     _entryCtrl = AnimationController(
       vsync: this,
-      duration: const Duration(milliseconds: 750),
-    );
-
-    // Logo — ScaleTransition + FadeTransition (pas de saveLayer)
-    _logoScale = Tween<double>(begin: 0.55, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _entryCtrl,
-        curve: const Interval(0.0, 0.65, curve: Curves.elasticOut),
-      ),
-    );
-    _logoFade = Tween<double>(begin: 0.0, end: 1.0).animate(
-      CurvedAnimation(
-        parent: _entryCtrl,
-        curve: const Interval(0.0, 0.35, curve: Curves.easeOut),
-      ),
+      duration: const Duration(milliseconds: 900),
     );
 
     // Titre — SlideTransition en unités fractionnaires
@@ -313,34 +291,6 @@ class _SplashPageState extends ConsumerState<SplashPage>
       ),
     );
 
-    // ── Pulse (2 s, repeat) ───────────────────────────────────
-    _pulseCtrl = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 2000),
-    )..repeat();
-
-    _haloScale = Tween<double>(
-      begin: 1.0,
-      end: 1.28,
-    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
-    _haloFade = Tween<double>(
-      begin: 0.18,
-      end: 0.0,
-    ).animate(CurvedAnimation(parent: _pulseCtrl, curve: Curves.easeInOut));
-
-    _ringScale = Tween<double>(begin: 1.0, end: 1.65).animate(
-      CurvedAnimation(
-        parent: _pulseCtrl,
-        curve: const Interval(0.3, 1.0, curve: Curves.easeOut),
-      ),
-    );
-    _ringFade = Tween<double>(begin: 0.25, end: 0.0).animate(
-      CurvedAnimation(
-        parent: _pulseCtrl,
-        curve: const Interval(0.3, 1.0, curve: Curves.easeOut),
-      ),
-    );
-
     // ── Dots bounce (1.4 s, repeat) ───────────────────────────
     _dotsCtrl = AnimationController(
       vsync: this,
@@ -359,7 +309,7 @@ class _SplashPageState extends ConsumerState<SplashPage>
   }
 
   Future<void> _startSequence() async {
-    await Future.delayed(const Duration(milliseconds: 180));
+    //await Future.delayed(const Duration(milliseconds: 180));
     if (mounted) _entryCtrl.forward();
 
     await _bootstrapSessionAndCheckAgency();
@@ -369,7 +319,6 @@ class _SplashPageState extends ConsumerState<SplashPage>
   void dispose() {
     _agencyCheckSub.close();
     _entryCtrl.dispose();
-    _pulseCtrl.dispose();
     _dotsCtrl.dispose();
     _refreshCtrl.dispose();
     super.dispose();
@@ -387,25 +336,8 @@ class _SplashPageState extends ConsumerState<SplashPage>
           child: Column(
             mainAxisAlignment: MainAxisAlignment.center,
             children: [
-              // ── Logo ─────────────────────────────────────────
-              // RepaintBoundary isole le pulse dans son propre layer
-              // → le reste de l'écran n'est pas repaint à chaque tick
-              RepaintBoundary(
-                child: FadeTransition(
-                  opacity: _logoFade,
-                  child: ScaleTransition(
-                    scale: _logoScale,
-                    child: _AnimatedLogo(
-                      color: _mumoRed,
-                      haloScale: _haloScale,
-                      haloFade: _haloFade,
-                      ringScale: _ringScale,
-                      ringFade: _ringFade,
-                      pulseCtrl: _pulseCtrl,
-                    ),
-                  ),
-                ),
-              ),
+              // ── Logo statique ────────────────────────────────
+              const _StaticLogo(color: _mumoRed),
 
               const SizedBox(height: 32),
 
@@ -551,95 +483,30 @@ class _SplashPageState extends ConsumerState<SplashPage>
 }
 
 // ─────────────────────────────────────────────────────────────────
-//  Logo avec halos pulsés — widget isolé pour limiter les rebuilds
+//  Logo fixe de l'écran de démarrage
 // ─────────────────────────────────────────────────────────────────
-class _AnimatedLogo extends StatelessWidget {
-  const _AnimatedLogo({
-    required this.color,
-    required this.haloScale,
-    required this.haloFade,
-    required this.ringScale,
-    required this.ringFade,
-    required this.pulseCtrl,
-  });
-
+class _StaticLogo extends StatelessWidget {
+  const _StaticLogo({required this.color});
   final Color color;
-  final Animation<double> haloScale;
-  final Animation<double> haloFade;
-  final Animation<double> ringScale;
-  final Animation<double> ringFade;
-  final AnimationController pulseCtrl;
 
   @override
   Widget build(BuildContext context) {
-    // AnimatedBuilder n'écoute que pulseCtrl
-    return AnimatedBuilder(
-      animation: pulseCtrl,
-      builder: (_, __) => Stack(
-        alignment: Alignment.center,
-        children: [
-          // Halo rempli
-          ScaleTransition(
-            scale: haloScale,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(26),
-                color: color.withOpacity(haloFade.value),
-              ),
-            ),
-          ),
-
-          // Ring border
-          ScaleTransition(
-            scale: ringScale,
-            child: Container(
-              width: 120,
-              height: 120,
-              decoration: BoxDecoration(
-                borderRadius: BorderRadius.circular(26),
-                border: Border.all(
-                  color: color.withOpacity(ringFade.value),
-                  width: 2,
-                ),
-              ),
-            ),
-          ),
-
-          // Logo principal (statique, pas besoin d'AnimatedBuilder)
-          Container(
-            width: 120,
-            height: 120,
-            decoration: BoxDecoration(
-              color: color,
-              borderRadius: BorderRadius.circular(20),
-              boxShadow: [
-                BoxShadow(
-                  color: color.withOpacity(0.38),
-                  blurRadius: 24,
-                  spreadRadius: 2,
-                  offset: const Offset(0, 10),
-                ),
-                BoxShadow(
-                  color: Colors.black.withAlpha(20),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            alignment: Alignment.center,
-            child: const Text(
-              'M',
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 52,
-                fontWeight: FontWeight.w800,
-                height: 1,
-              ),
-            ),
-          ),
-        ],
+    return Container(
+      width: 120,
+      height: 120,
+      decoration: BoxDecoration(
+        color: color,
+        borderRadius: BorderRadius.circular(20),
+      ),
+      alignment: Alignment.center,
+      child: const Text(
+        'M',
+        style: TextStyle(
+          color: Colors.white,
+          fontSize: 52,
+          fontWeight: FontWeight.w800,
+          height: 1,
+        ),
       ),
     );
   }

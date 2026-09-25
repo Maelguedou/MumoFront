@@ -1,7 +1,7 @@
 import 'dart:async';
 import 'dart:developer' as dev;
 import 'dart:ui';
-
+import 'sms_local_queue.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_background_service/flutter_background_service.dart';
 
@@ -17,8 +17,8 @@ Future<void> initializeSmsBackgroundService() async {
   await service.configure(
     androidConfiguration: AndroidConfiguration(
       onStart: smsBackgroundServiceOnStart,
-      autoStart: true,
-      autoStartOnBoot: true,
+      autoStart: false,
+      autoStartOnBoot: false,
       isForegroundMode: true,
       initialNotificationTitle: 'Mumo Agent',
       initialNotificationContent:
@@ -27,7 +27,7 @@ Future<void> initializeSmsBackgroundService() async {
       foregroundServiceTypes: [AndroidForegroundType.dataSync],
     ),
     iosConfiguration: IosConfiguration(
-      autoStart: true,
+      autoStart: false,
       onForeground: smsBackgroundServiceOnStart,
       onBackground: smsBackgroundServiceOnIosBackground,
     ),
@@ -43,6 +43,13 @@ Future<bool> smsBackgroundServiceOnIosBackground(
   DartPluginRegistrant.ensureInitialized();
 
   await BackgroundRetryService.retryPending(force: true);
+  final pendingAfterStartup = await SmsLocalQueue.getAll();
+
+  if (pendingAfterStartup.isEmpty) {
+    service.stopSelf();
+    return true;
+  }
+
   await AppLogger.info('iOS background retry executed', tag: 'BG_SERVICE');
   return true;
 }
@@ -69,6 +76,12 @@ void smsBackgroundServiceOnStart(ServiceInstance service) async {
 
   await BackgroundRetryService.retryPending(force: true);
 
+  final pendingAfterStartup = await SmsLocalQueue.getAll();
+  if (pendingAfterStartup.isEmpty) {
+    service.stopSelf();
+    return;
+  }
+
   Timer.periodic(_smsBackgroundServiceInterval, (timer) async {
     final isServiceRunning = await _isServiceRunning(service);
     if (!isServiceRunning) {
@@ -82,6 +95,14 @@ void smsBackgroundServiceOnStart(ServiceInstance service) async {
       tag: 'BG_SERVICE',
     );
     await BackgroundRetryService.retryPending();
+
+    final pendingAfterRetry = await SmsLocalQueue.getAll();
+
+    if (pendingAfterRetry.isEmpty) {
+      timer.cancel();
+      service.stopSelf();
+      return;
+    }
   });
 }
 
@@ -91,4 +112,15 @@ Future<bool> _isServiceRunning(ServiceInstance service) async {
   }
 
   return true;
+}
+
+Future<void> startSmsBackgroundServiceIfNeeded() async {
+  final pending = await SmsLocalQueue.getAll();
+
+  if (pending.isEmpty) {
+    return;
+  }
+
+  final service = FlutterBackgroundService();
+  await service.startService();
 }

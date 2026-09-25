@@ -6,6 +6,8 @@ import 'sms_confirmation_service.dart';
 import 'sms_local_queue.dart';
 
 class BackgroundRetryService {
+  static const int maxRetryAttempts = 10;
+
   @visibleForTesting
   static Future<int?> Function(String operatorName)?
   resolveOperatorIdForTesting;
@@ -43,6 +45,12 @@ class BackgroundRetryService {
 
     for (int i = pending.length - 1; i >= 0; i--) {
       final item = pending[i];
+      final currentattempts = _readAttempts(item['attempts']);
+
+      if (currentattempts >= maxRetryAttempts) {
+        await _removeAfterMaxAttempts(item, i);
+        continue;
+      }
       try {
         if (!force && !_shouldRetryNow(item)) {
           dev.log('[Retry] Item $i ignoré temporairement (backoff actif)');
@@ -53,8 +61,12 @@ class BackgroundRetryService {
           continue;
         }
 
-        item['attempts'] = _readAttempts(item['attempts']) + 1;
+        final attemptNumber = currentattempts + 1;
+
+        item['attempts'] = attemptNumber;
         item['last_attempt_at'] = DateTime.now().toIso8601String();
+
+        await SmsLocalQueue.updateAt(i, item);
 
         // Résoudre l'operatorId si on a stocké le nom
         int? operatorId = item['operator_id'] as int?;
@@ -66,15 +78,14 @@ class BackgroundRetryService {
               );
         }
         if (operatorId == null) {
-          dev.log(
-            '[Retry] ⚠️ Impossible de résoudre l\'opérateur pour item $i',
-          );
+          dev.log('[Retry] Impossible de résoudre l\'opérateur pour item $i');
           item['last_error'] = 'operator_not_resolved';
-          await SmsLocalQueue.updateAt(i, item);
-          await AppLogger.warning(
-            'retry failed index=$i reason=operator_not_resolved',
-            tag: 'RETRY',
+          await _keepOrRemoveAfterFailure(
+            item: item,
+            index: i,
+            reason: 'operator_not_resolved',
           );
+
           continue;
         }
 
@@ -92,23 +103,28 @@ class BackgroundRetryService {
 
         if (success) {
           await SmsLocalQueue.removeAt(i);
-          dev.log('[Retry] ✅ Item $i confirmé et retiré');
+          dev.log('[Retry]  Item $i confirmé et retiré');
           await AppLogger.info(
             'retry success index=$i tx=${item['transaction_id']}',
             tag: 'RETRY',
           );
         } else {
           item['last_error'] = 'confirmation_failed';
-          await SmsLocalQueue.updateAt(i, item);
-          dev.log('[Retry] ⚠️ Item $i toujours en échec');
-          await AppLogger.warning(
-            'retry failed index=$i reason=confirmation_failed',
-            tag: 'RETRY',
+          await _keepOrRemoveAfterFailure(
+            item: item,
+            index: i,
+            reason: 'confirmation_failed',
           );
         }
       } catch (e) {
         item['last_error'] = e.toString();
-        await SmsLocalQueue.updateAt(i, item);
+
+        await _keepOrRemoveAfterFailure(
+          item: item,
+          index: i,
+          reason: e.toString(),
+        );
+
         dev.log('[Retry] Erreur item $i : $e');
         await AppLogger.error(
           'retry exception index=$i',
@@ -142,5 +158,57 @@ class BackgroundRetryService {
     if (attempts == 2) return const Duration(minutes: 5);
     if (attempts == 3) return const Duration(minutes: 15);
     return const Duration(hours: 1);
+  }
+
+  static Future<void> _keepOrRemoveAfterFailure({
+    required Map<String, dynamic> item,
+    required int index,
+    required String reason,
+  }) async {
+    final attempts = _readAttempts(item['attempts']);
+
+    if (attempts >= maxRetryAttempts) {
+      await _removeAfterMaxAttempts(item, index, reason: reason);
+      return;
+    }
+
+    await SmsLocalQueue.updateAt(index, item);
+
+    dev.log(
+      '[Retry] Échec conservé '
+      'attempt=$attempts/$maxRetryAttempts '
+      'reason=$reason',
+    );
+
+    await AppLogger.warning(
+      'retry failed and kept index=$index '
+      'attempts=$attempts/$maxRetryAttempts '
+      'reason=$reason',
+      tag: 'RETRY',
+    );
+  }
+
+  static Future<void> _removeAfterMaxAttempts(
+    Map<String, dynamic> item,
+    int index, {
+    String reason = 'max_attempts_reached',
+  }) async {
+    final attempts = _readAttempts(item['attempts']);
+
+    await SmsLocalQueue.removeAt(index);
+
+    dev.log(
+      '[Retry] Élément supprimé après '
+      '$attempts/$maxRetryAttempts tentatives',
+    );
+
+    await AppLogger.warning(
+      'queue item removed after max attempts '
+      'index=$index '
+      'tx=${item['transaction_id']} '
+      'attempts=$attempts '
+      'reason=$reason',
+      tag: 'RETRY',
+    );
   }
 }

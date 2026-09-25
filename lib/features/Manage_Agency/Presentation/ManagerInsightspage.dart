@@ -70,8 +70,6 @@ class _InsightsPageState extends ConsumerState<InsightsPage> {
             AppSpacing.xxxl,
           ),
           children: [
-            _IntroCard(period: period),
-            const SizedBox(height: AppSpacing.xl),
             SegmentedButton<String>(
               segments: const [
                 ButtonSegment<String>(
@@ -118,12 +116,7 @@ class _InsightsPageState extends ConsumerState<InsightsPage> {
               Column(
                 children: [
                   for (final insight in state.history)
-                    _InsightReportCard(
-                      insight: insight,
-                      onTap: () => ref
-                          .read(agencyInsightControllerProvider.notifier)
-                          .selectInsight(insight),
-                    ),
+                    _InsightReportCard(insight: insight),
                 ],
               ),
           ],
@@ -199,10 +192,9 @@ class _IntroCard extends StatelessWidget {
 }
 
 class _InsightReportCard extends StatelessWidget {
-  const _InsightReportCard({required this.insight, required this.onTap});
+  const _InsightReportCard({required this.insight});
 
   final AgencyInsight insight;
-  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -237,7 +229,6 @@ class _InsightReportCard extends StatelessWidget {
                   ),
                 ),
               ),
-              TextButton(onPressed: onTap, child: const Text('Consulter')),
             ],
           ),
           Text(

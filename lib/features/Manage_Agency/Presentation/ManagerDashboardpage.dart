@@ -95,8 +95,6 @@ class _DashboardPageState extends ConsumerState<DashboardPage> {
               errorMessage: servicePointState.dailyRecapErrorMessage,
               onRetry: _refreshDashboard,
             ),
-            const SizedBox(height: AppSpacing.xxl),
-            const _RecentActivity(),
           ],
         ),
       ),
